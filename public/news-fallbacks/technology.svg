@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-label="Technology news fallback image">
+  <defs><linearGradient id="g" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#020617"/><stop offset=".58" stop-color="#4338ca"/><stop offset="1" stop-color="#7dd3fc"/></linearGradient></defs>
+  <rect width="1600" height="900" fill="url(#g)"/>
+  <rect x="360" y="210" width="880" height="480" rx="54" fill="#e0f2fe" opacity=".86"/>
+  <rect x="430" y="285" width="740" height="310" rx="30" fill="#0f172a" opacity=".88"/>
+  <path d="M520 390h210M520 470h360M940 390h120" stroke="#7dd3fc" stroke-width="24" stroke-linecap="round"/>
+  <path d="M650 690h300M760 690v80M840 690v80" stroke="#e0f2fe" stroke-width="24" stroke-linecap="round"/>
+</svg>

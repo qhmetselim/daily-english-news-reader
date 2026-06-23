@@ -32,6 +32,8 @@ export type Article = {
   summary: string;
   source: string;
   publishedDate: string;
+  imageUrl?: string;
+  usesFallbackImage?: boolean;
   category: ArticleCategory;
   level: Level;
   readTime: string;
@@ -51,6 +53,8 @@ type RawArticle = {
   paragraphs?: string[];
   source?: string;
   publishedDate?: string;
+  imageUrl?: string;
+  usesFallbackImage?: boolean;
   category?: ArticleCategory;
   level?: string;
   readingTimeMinutes?: number;
@@ -96,6 +100,8 @@ function normalizeArticle(article: RawArticle): Article {
     summary,
     source: article.source ?? "RSS",
     publishedDate: article.publishedDate ?? new Date().toISOString(),
+    imageUrl: normalizeImageUrl(article.imageUrl),
+    usesFallbackImage: article.usesFallbackImage === true,
     category,
     level: normalizeLevel(article.level),
     readTime: `${readingTimeMinutes} min`,
@@ -105,6 +111,24 @@ function normalizeArticle(article: RawArticle): Article {
     vocabulary: buildVocabulary(`${title} ${summary} ${content}`),
     exercises: normalizeExercises(article.exercises, title, content, category),
   };
+}
+
+function normalizeImageUrl(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  if (value.startsWith("/")) {
+    return value;
+  }
+
+  try {
+    const url = new URL(value);
+
+    return ["http:", "https:"].includes(url.protocol) ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function normalizeLevel(level: string | undefined): Level {

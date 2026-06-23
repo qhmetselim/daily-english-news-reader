@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { ArticleImage } from "@/components/article-image";
 import type { Article, ArticleCategory } from "@/lib/articles";
 import {
   levelOptions,
@@ -70,7 +71,7 @@ export function NewsExplorer({ articles }: { articles: Article[] }) {
   return (
     <div className="mt-12">
       <div className="premium-shell rounded-[2rem] p-4">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <label className="relative flex-1">
             <span className="sr-only">
               <LocalizedText id="searchArticles" />
@@ -87,7 +88,7 @@ export function NewsExplorer({ articles }: { articles: Article[] }) {
           </label>
 
           <label
-            className={`flex h-14 min-w-80 items-center gap-3 rounded-2xl border px-5 shadow-sm transition ${levelSelectTone[level]}`}
+            className={`flex h-14 w-full items-center gap-3 rounded-2xl border px-5 shadow-sm transition lg:w-auto lg:min-w-80 ${levelSelectTone[level]}`}
           >
             <span className="text-xs font-semibold uppercase opacity-75">
               <LocalizedText id="levelLabel" />
@@ -134,7 +135,7 @@ export function NewsExplorer({ articles }: { articles: Article[] }) {
       </div>
 
       {filteredArticles.length > 0 ? (
-        <div className="mt-6 grid grid-cols-3 gap-5">
+        <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {filteredArticles.map((article) => (
             <ArticleCard key={article.id} article={article} language={language} />
           ))}
@@ -168,43 +169,53 @@ function ArticleCard({
   return (
     <Link
       href={`/article/${article.id}`}
-      className="premium-card group flex h-80 flex-col rounded-[1.75rem] p-6 transition hover:-translate-y-1 hover:border-blue-200 hover:bg-white"
+      className="premium-card group flex min-h-[28rem] flex-col overflow-hidden rounded-[1.75rem] p-0 transition hover:-translate-y-1 hover:border-blue-200 hover:bg-white"
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-            {translations[language][categoryTranslationKeys[article.category]]}
-          </span>
-          {article.isFallback ? (
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-              Demo
-            </span>
-          ) : null}
-        </div>
+      <div className="relative overflow-hidden rounded-t-[1.75rem]">
+        <ArticleImage
+          category={article.category}
+          imageUrl={article.imageUrl}
+          title={article.title}
+          usesFallbackImage={article.usesFallbackImage}
+          sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+          className="aspect-video"
+        />
+        <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-slate-950/65 to-transparent" />
+        <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-900 shadow-lg shadow-slate-950/10 backdrop-blur">
+          {translations[language][categoryTranslationKeys[article.category]]}
+        </span>
         <span
-          className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+          className={`absolute bottom-4 right-4 rounded-full px-3 py-1 text-xs font-semibold ring-1 backdrop-blur ${
             levelTone[article.level]
           }`}
         >
           {levelLabel}
         </span>
       </div>
-      <h3 className="mt-5 text-xl font-semibold leading-7 text-slate-950">
-        {article.title}
-      </h3>
-      <p className="mt-3 line-clamp-3 flex-1 text-sm leading-6 text-slate-600">
-        {article.summary}
-      </p>
-      <div className="mt-6 border-t border-stone-200/90 pt-4">
-        <div className="flex items-center justify-between text-xs font-medium text-slate-500">
-          <span>{article.source}</span>
-          <span>{article.readTime}</span>
-        </div>
-        <div className="mt-3 flex items-center justify-between">
-          <span className="text-sm text-slate-500">{article.publishedDate}</span>
-          <span className="text-sm font-semibold text-blue-700 transition group-hover:translate-x-1">
-            {translations[language].readPractice}
+
+      <div className="flex flex-1 flex-col p-6">
+        {article.isFallback ? (
+          <span className="mb-3 w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+            Demo
           </span>
+        ) : null}
+        <h3 className="text-xl font-semibold leading-7 text-slate-950">
+          {article.title}
+        </h3>
+        <p className="mt-3 line-clamp-3 flex-1 text-sm leading-6 text-slate-600">
+          {article.summary}
+        </p>
+        <div className="mt-6 border-t border-stone-200/90 pt-4">
+          <div className="flex items-center justify-between text-xs font-medium text-slate-500">
+            <span>{article.source}</span>
+            <span>{article.readTime}</span>
+          </div>
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-sm text-slate-500">{article.publishedDate}</span>
+            <span className="text-sm font-semibold text-blue-700 transition group-hover:translate-x-1">
+              {translations[language].readPractice}
+            </span>
+          </div>
         </div>
       </div>
     </Link>

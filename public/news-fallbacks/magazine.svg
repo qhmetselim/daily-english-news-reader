@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-label="Magazine news fallback image">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#1c1917"/><stop offset=".56" stop-color="#c2410c"/><stop offset="1" stop-color="#f9a8d4"/></linearGradient></defs>
+  <rect width="1600" height="900" fill="url(#g)"/>
+  <rect x="360" y="160" width="360" height="580" rx="42" fill="#fff7ed" opacity=".9"/>
+  <rect x="760" y="160" width="480" height="580" rx="42" fill="#ffe4e6" opacity=".82"/>
+  <path d="M430 270h210M430 350h170M830 285h310M830 380h250M830 475h330" stroke="#9f1239" stroke-width="24" stroke-linecap="round" opacity=".55"/>
+  <circle cx="560" cy="555" r="86" fill="#fb7185" opacity=".75"/>
+</svg>
