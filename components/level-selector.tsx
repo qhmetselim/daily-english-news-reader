@@ -23,13 +23,13 @@ export function LevelSelector() {
       <p className="text-sm font-medium text-slate-300">
         <LocalizedText id="levelLabel" />
       </p>
-      <div className="mx-auto mt-3 grid max-w-xl grid-cols-4 gap-2.5">
+      <div className="mx-auto mt-3 grid max-w-xl grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
         {levelOptions.map((option) => (
           <button
             key={option.value}
             type="button"
             onClick={() => setLevel(option.value)}
-            className={`min-h-14 rounded-2xl border px-3 py-3 text-center text-sm font-semibold transition ${
+            className={`min-h-12 rounded-2xl border px-3 py-3 text-center text-sm font-semibold transition sm:min-h-14 ${
               level === option.value
                 ? selectedLevelTone[option.value]
                 : "border-white/10 bg-white/[0.07] text-slate-200 hover:border-white/25 hover:bg-white/[0.12]"

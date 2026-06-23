@@ -69,8 +69,8 @@ export function NewsExplorer({ articles }: { articles: Article[] }) {
   }, [articles, category, level, query]);
 
   return (
-    <div className="mt-12">
-      <div className="premium-shell rounded-[2rem] p-4">
+    <div className="mt-8 sm:mt-12">
+      <div className="premium-shell rounded-[1.5rem] p-3 sm:rounded-[2rem] sm:p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <label className="relative flex-1">
             <span className="sr-only">
@@ -88,7 +88,7 @@ export function NewsExplorer({ articles }: { articles: Article[] }) {
           </label>
 
           <label
-            className={`flex h-14 w-full items-center gap-3 rounded-2xl border px-5 shadow-sm transition lg:w-auto lg:min-w-80 ${levelSelectTone[level]}`}
+            className={`flex min-h-14 w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border px-4 py-2 shadow-sm transition sm:flex-nowrap sm:px-5 lg:w-auto lg:min-w-80 ${levelSelectTone[level]}`}
           >
             <span className="text-xs font-semibold uppercase opacity-75">
               <LocalizedText id="levelLabel" />
@@ -96,7 +96,7 @@ export function NewsExplorer({ articles }: { articles: Article[] }) {
             <select
               value={level}
               onChange={(event) => setLevel(event.target.value as typeof level)}
-              className="flex-1 bg-transparent text-sm font-semibold outline-none"
+              className="min-h-11 min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"
             >
               {levelOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -107,13 +107,13 @@ export function NewsExplorer({ articles }: { articles: Article[] }) {
           </label>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="-mx-3 mt-4 flex max-w-[calc(100%+1.5rem)] gap-2 overflow-x-auto px-3 pb-1 sm:-mx-4 sm:max-w-[calc(100%+2rem)] sm:px-4 lg:mx-0 lg:max-w-full lg:flex-wrap lg:overflow-visible lg:px-0 lg:pb-0">
           {categories.map((item) => (
             <button
               key={item}
               type="button"
               onClick={() => setCategory(item)}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+              className={`min-h-11 flex-none rounded-full px-4 py-2 text-sm font-semibold transition ${
                 category === item
                   ? "bg-blue-700 text-white shadow-lg shadow-blue-900/15"
                   : "bg-white/70 text-slate-600 shadow-sm shadow-slate-900/5 hover:bg-white hover:text-slate-950"
@@ -125,7 +125,7 @@ export function NewsExplorer({ articles }: { articles: Article[] }) {
         </div>
       </div>
 
-      <div className="mt-6 flex items-center justify-between px-1 text-sm text-slate-500">
+      <div className="mt-5 flex flex-col gap-1 px-1 text-sm text-slate-500 sm:mt-6 sm:flex-row sm:items-center sm:justify-between">
         <span>
           {filteredArticles.length} <LocalizedText id="articlesFound" />
         </span>
@@ -141,8 +141,8 @@ export function NewsExplorer({ articles }: { articles: Article[] }) {
           ))}
         </div>
       ) : (
-        <div className="premium-card mt-6 rounded-[2rem] border-dashed p-12 text-center">
-          <h2 className="text-2xl font-semibold text-slate-950">
+        <div className="premium-card mt-6 rounded-[1.5rem] border-dashed p-6 text-center sm:rounded-[2rem] sm:p-12">
+          <h2 className="text-xl font-semibold text-slate-950 sm:text-2xl">
             <LocalizedText id="noArticles" />
           </h2>
           <p className="mt-3 text-slate-500">
@@ -169,9 +169,9 @@ function ArticleCard({
   return (
     <Link
       href={`/article/${article.id}`}
-      className="premium-card group flex min-h-[28rem] flex-col overflow-hidden rounded-[1.75rem] p-0 transition hover:-translate-y-1 hover:border-blue-200 hover:bg-white"
+      className="premium-card group flex min-h-[26rem] flex-col overflow-hidden rounded-[1.5rem] p-0 transition hover:-translate-y-1 hover:border-blue-200 hover:bg-white sm:min-h-[28rem] sm:rounded-[1.75rem]"
     >
-      <div className="relative overflow-hidden rounded-t-[1.75rem]">
+      <div className="relative overflow-hidden rounded-t-[1.5rem] sm:rounded-t-[1.75rem]">
         <ArticleImage
           category={article.category}
           imageUrl={article.imageUrl}
@@ -181,11 +181,11 @@ function ArticleCard({
           className="aspect-video"
         />
         <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-slate-950/65 to-transparent" />
-        <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-900 shadow-lg shadow-slate-950/10 backdrop-blur">
+        <span className="absolute left-3 top-3 max-w-[calc(100%-1.5rem)] rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-900 shadow-lg shadow-slate-950/10 backdrop-blur sm:left-4 sm:top-4">
           {translations[language][categoryTranslationKeys[article.category]]}
         </span>
         <span
-          className={`absolute bottom-4 right-4 rounded-full px-3 py-1 text-xs font-semibold ring-1 backdrop-blur ${
+          className={`absolute bottom-3 right-3 max-w-[calc(100%-1.5rem)] rounded-full px-3 py-1 text-xs font-semibold ring-1 backdrop-blur sm:bottom-4 sm:right-4 ${
             levelTone[article.level]
           }`}
         >
@@ -193,24 +193,24 @@ function ArticleCard({
         </span>
       </div>
 
-      <div className="flex flex-1 flex-col p-6">
+      <div className="flex flex-1 flex-col p-4 sm:p-6">
         {article.isFallback ? (
           <span className="mb-3 w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
             Demo
           </span>
         ) : null}
-        <h3 className="text-xl font-semibold leading-7 text-slate-950">
+        <h3 className="text-lg font-semibold leading-7 text-slate-950 sm:text-xl">
           {article.title}
         </h3>
         <p className="mt-3 line-clamp-3 flex-1 text-sm leading-6 text-slate-600">
           {article.summary}
         </p>
         <div className="mt-6 border-t border-stone-200/90 pt-4">
-          <div className="flex items-center justify-between text-xs font-medium text-slate-500">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-medium text-slate-500">
             <span>{article.source}</span>
             <span>{article.readTime}</span>
           </div>
-          <div className="mt-3 flex items-center justify-between">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm text-slate-500">{article.publishedDate}</span>
             <span className="text-sm font-semibold text-blue-700 transition group-hover:translate-x-1">
               {translations[language].readPractice}

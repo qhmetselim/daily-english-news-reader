@@ -17,8 +17,8 @@ export function VocabularyList({
           key={item.word}
           className="rounded-2xl border border-stone-200 bg-white/90 p-4 shadow-sm shadow-slate-900/5"
         >
-          <dt className="font-semibold text-slate-950">{item.word}</dt>
-          <dd className="mt-2 text-sm leading-6 text-slate-600">
+          <dt className="break-words font-semibold text-slate-950">{item.word}</dt>
+          <dd className="mt-2 break-words text-sm leading-6 text-slate-600">
             {item.meanings[language]}
           </dd>
         </div>

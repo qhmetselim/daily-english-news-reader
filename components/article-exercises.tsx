@@ -48,7 +48,7 @@ function LessonSection({
   children: ReactNode;
 }) {
   return (
-    <section className="premium-card rounded-3xl p-6">
+    <section className="premium-card rounded-3xl p-5 sm:p-6">
       <SectionHeading index={index} title={title} />
       <div className="mt-5">{children}</div>
     </section>
@@ -64,10 +64,12 @@ function SectionHeading({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-950 text-xs font-semibold text-white">
+      <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-slate-950 text-xs font-semibold text-white">
         {index}
       </span>
-      <h2 className="text-xl font-semibold text-slate-950">{title}</h2>
+      <h2 className="text-lg font-semibold leading-6 text-slate-950 sm:text-xl">
+        {title}
+      </h2>
     </div>
   );
 }
@@ -131,7 +133,7 @@ function TrueFalseList({
               />
               {selectedChoice !== undefined ? (
                 <span
-                  className={`ml-auto rounded-full px-3 py-1 text-xs font-semibold ${
+                  className={`min-h-8 rounded-full px-3 py-1.5 text-xs font-semibold sm:ml-auto ${
                     isCorrect
                       ? "bg-emerald-100 text-emerald-800"
                       : "bg-rose-100 text-rose-800"
@@ -163,7 +165,7 @@ function ChoiceButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full px-3 py-1 text-xs font-semibold transition active:scale-95 ${
+      className={`min-h-11 rounded-full px-4 py-2 text-xs font-semibold transition active:scale-95 ${
         isSelected
           ? "bg-slate-950 text-white shadow-md shadow-slate-900/20"
           : "bg-white text-slate-700 ring-1 ring-stone-200 hover:-translate-y-0.5 hover:ring-slate-300"
@@ -181,7 +183,7 @@ function SummaryTask({ prompt }: { prompt: string }) {
     <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/80 p-4">
       <p className="text-sm leading-6 text-slate-600">{prompt}</p>
       <textarea
-        className="mt-4 min-h-40 w-full resize-y rounded-2xl border border-stone-200 bg-white/95 p-4 text-sm leading-6 text-slate-800 shadow-inner shadow-slate-900/5 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
+        className="mt-4 min-h-40 w-full resize-y rounded-2xl border border-stone-200 bg-white/95 p-4 text-base leading-6 text-slate-800 shadow-inner shadow-slate-900/5 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-100 sm:text-sm"
         placeholder={translations[language].summaryPlaceholder}
       />
     </div>

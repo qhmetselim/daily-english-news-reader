@@ -19,12 +19,12 @@ export function LevelBadge() {
 
   return (
     <div
-      className={`rounded-3xl border px-6 py-5 shadow-lg ${levelBadgeTone[level]}`}
+      className={`w-full rounded-3xl border px-5 py-4 shadow-lg sm:w-auto sm:px-6 sm:py-5 ${levelBadgeTone[level]}`}
     >
       <p className="text-xs font-semibold uppercase opacity-70">
         <LocalizedText id="currentLevel" />
       </p>
-      <p className="mt-2 text-2xl font-semibold">{label}</p>
+      <p className="mt-2 text-xl font-semibold sm:text-2xl">{label}</p>
     </div>
   );
 }

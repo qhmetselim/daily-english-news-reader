@@ -12,16 +12,16 @@ export default async function NewsPage() {
   return (
     <main className="min-h-screen">
       <Header />
-      <section className="mx-auto w-full max-w-[88rem] px-10 py-14">
-        <div className="flex items-end justify-between gap-8">
-          <div>
+      <section className="mx-auto w-full max-w-[88rem] px-4 py-8 sm:px-6 sm:py-10 lg:px-10 lg:py-14">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
+          <div className="min-w-0">
             <p className="text-sm font-semibold uppercase text-blue-700/90">
               <LocalizedText id="freeDailyNews" />
             </p>
-            <h1 className="mt-4 text-6xl font-semibold text-slate-950">
+            <h1 className="mt-4 text-4xl font-semibold leading-tight text-slate-950 sm:text-5xl lg:text-6xl">
               <LocalizedText id="newsTitle" />
             </h1>
-            <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">
+            <p className="mt-5 max-w-3xl text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">
               <LocalizedText id="newsIntro" />
             </p>
           </div>
