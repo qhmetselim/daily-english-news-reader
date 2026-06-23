@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { ReactNode } from "react";
+import { ArticleExercises } from "@/components/article-exercises";
 import { Header } from "@/components/header";
 import { LocalizedCategory } from "@/components/localized-category";
 import { LocalizedText } from "@/components/localized-text";
-import { VocabularyList } from "@/components/vocabulary-list";
 import { getArticleById } from "@/lib/articles";
 
 type ArticlePageProps = {
@@ -105,122 +104,9 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             </p>
           </section>
 
-          <LessonSection index="01" title={<LocalizedText id="warmUpQuestions" />}>
-            <QuestionList items={article.exercises.warmUpQuestions} />
-          </LessonSection>
-
-          <section className="premium-card rounded-3xl p-6">
-            <SectionHeading index="02" title={<LocalizedText id="keyVocabulary" />} />
-            <VocabularyList vocabulary={article.vocabulary} />
-          </section>
-
-          <LessonSection index="03" title={<LocalizedText id="fillInTheBlanks" />}>
-            <QuestionList items={article.exercises.fillInTheBlanks} variant="blank" />
-          </LessonSection>
-
-          <LessonSection index="04" title={<LocalizedText id="trueFalse" />}>
-            <QuestionList
-              items={article.exercises.trueFalse.map((item) => item.statement)}
-              variant="choice"
-            />
-          </LessonSection>
-
-          <LessonSection
-            index="05"
-            title={<LocalizedText id="readingComprehension" />}
-          >
-            <QuestionList items={article.exercises.readingComprehension} />
-          </LessonSection>
-
-          <LessonSection
-            index="06"
-            title={<LocalizedText id="discussionQuestions" />}
-          >
-            <QuestionList items={article.exercises.discussionQuestions} />
-          </LessonSection>
-
-          <LessonSection index="07" title={<LocalizedText id="summaryTask" />}>
-            <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/80 p-4">
-              <p className="text-sm leading-6 text-slate-600">
-                {article.exercises.summaryTask}
-              </p>
-              <div className="mt-4 space-y-2">
-                <div className="h-10 rounded-xl border border-stone-200 bg-white/90" />
-                <div className="h-10 rounded-xl border border-stone-200 bg-white/90" />
-                <div className="h-10 rounded-xl border border-stone-200 bg-white/90" />
-              </div>
-            </div>
-          </LessonSection>
+          <ArticleExercises exercises={article.exercises} />
         </aside>
       </article>
     </main>
-  );
-}
-
-function LessonSection({
-  index,
-  title,
-  children,
-}: {
-  index: string;
-  title: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="premium-card rounded-3xl p-6">
-      <SectionHeading index={index} title={title} />
-      <div className="mt-5">{children}</div>
-    </section>
-  );
-}
-
-function SectionHeading({
-  index,
-  title,
-}: {
-  index: string;
-  title: ReactNode;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-950 text-xs font-semibold text-white">
-        {index}
-      </span>
-      <h2 className="text-xl font-semibold text-slate-950">{title}</h2>
-    </div>
-  );
-}
-
-function QuestionList({
-  items,
-  variant = "question",
-}: {
-  items: string[];
-  variant?: "question" | "blank" | "choice";
-}) {
-  return (
-    <ol className="space-y-3">
-      {items.map((item) => (
-        <li
-          key={item}
-          className="rounded-2xl border border-stone-200 bg-white/90 p-4 text-sm leading-6 text-slate-700 shadow-sm shadow-slate-900/5"
-        >
-          <span>{item}</span>
-          {variant === "choice" ? (
-            <div className="mt-3 flex gap-2">
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                <LocalizedText id="trueLabel" />
-              </span>
-              <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
-                <LocalizedText id="falseLabel" />
-              </span>
-            </div>
-          ) : null}
-          {variant === "blank" ? (
-            <div className="mt-3 h-9 rounded-xl border border-dashed border-stone-300 bg-stone-50/90" />
-          ) : null}
-        </li>
-      ))}
-    </ol>
   );
 }

@@ -166,37 +166,83 @@ function buildVocabulary(text: string): VocabularyItem[] {
 function normalizeExercises(
   exercises: Partial<ArticleExerciseSet> | undefined,
   title: string,
-  summary: string,
-  category: ArticleCategory,
+  content: string,
+  _category: ArticleCategory,
 ): ArticleExerciseSet {
-  const keywords = extractKeywords(`${title} ${summary}`);
-  const firstKeyword = keywords[0] ?? "the story";
+  const sentences = extractSentences(content);
+  const keywords = extractKeywords(`${title} ${content}`);
+  const topic = keywords[0] ?? "the main issue";
+  const secondTopic = keywords[1] ?? "the people in the story";
+  const thirdTopic = keywords[2] ?? "the situation";
+  const generatedTrueFalse = [
+    ...sentences.slice(0, 3).map((sentence) => ({
+      statement: toStatement(sentence),
+      answer: true,
+    })),
+    {
+      statement: `The article says ${topic} is unrelated to the main events described.`,
+      answer: false,
+    },
+    {
+      statement:
+        "The article says nothing in the situation affects people, places, or decisions.",
+      answer: false,
+    },
+  ];
 
   return {
     warmUpQuestions: exercises?.warmUpQuestions?.length
       ? exercises.warmUpQuestions
-      : [`What do you know about ${category.toLowerCase()} news?`],
+      : [
+          `Before reading, what do you think might happen in an article titled "${title}"?`,
+          "Which people, places, or problems do you expect this article to mention?",
+        ],
     fillInTheBlanks: exercises?.fillInTheBlanks?.length
       ? exercises.fillInTheBlanks
-      : [`The article is mainly about ______.`, `${firstKeyword} is important because ______.`],
+      : [
+          "The article is mainly about ______.",
+          `${topic} is important in this story because ______.`,
+        ],
     trueFalse: exercises?.trueFalse?.length
       ? exercises.trueFalse
-      : [
-          {
-            statement: `The article belongs to the ${category} category.`,
-            answer: true,
-          },
-        ],
+      : generatedTrueFalse,
     readingComprehension: exercises?.readingComprehension?.length
       ? exercises.readingComprehension
-      : ["What is the main idea of the article?"],
+      : [
+          "What is the main idea of the article?",
+          `What does the article say about ${topic}?`,
+          `How is ${secondTopic} connected to the main story?`,
+          "Which paragraph gives the most important detail, and why?",
+        ],
     discussionQuestions: exercises?.discussionQuestions?.length
       ? exercises.discussionQuestions
-      : ["How would you explain this article to a friend?"],
+      : [
+          `What is your opinion about the way the article presents ${topic}?`,
+          `What question would you ask after reading the details about ${secondTopic}?`,
+          `How might ${thirdTopic} change if the situation continues?`,
+        ],
     summaryTask:
       exercises?.summaryTask ??
-      "Write a three-sentence summary with the main idea, one detail, and your reaction.",
+      "Write a three-sentence summary: one sentence for what happened, one for an important detail from the article, and one for why it matters.",
   };
+}
+
+function extractSentences(text: string): string[] {
+  return text
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(
+      (sentence) =>
+        sentence.length >= 45 &&
+        sentence.length <= 180 &&
+        /[A-Za-z]/.test(sentence),
+    )
+    .slice(0, 8);
+}
+
+function toStatement(sentence: string): string {
+  return sentence.replace(/[.!?]+$/, ".");
 }
 
 function extractKeywords(text: string): string[] {

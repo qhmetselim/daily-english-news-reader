@@ -670,19 +670,25 @@ function estimateLevel(text: string): EnglishLevel {
   const averageWordLength =
     words.reduce((total, word) => total + word.length, 0) / Math.max(words.length, 1);
   const averageSentenceLength = words.length / Math.max(sentences.length, 1);
-  const difficultWords = words.filter((word) => word.length >= 10).length;
+  const longWordRatio =
+    words.filter((word) => word.length >= 10).length / Math.max(words.length, 1);
+  const veryLongWordRatio =
+    words.filter((word) => word.length >= 13).length / Math.max(words.length, 1);
   const score =
-    averageWordLength * 1.3 + averageSentenceLength * 0.35 + difficultWords * 0.6;
+    averageSentenceLength * 0.55 +
+    averageWordLength * 0.9 +
+    longWordRatio * 65 +
+    veryLongWordRatio * 90;
 
-  if (score < 10) {
+  if (score < 18) {
     return "Beginner";
   }
 
-  if (score < 14) {
+  if (score < 21) {
     return "Intermediate";
   }
 
-  if (score < 18) {
+  if (score < 23) {
     return "Upper Intermediate";
   }
 
@@ -706,45 +712,72 @@ function createExcerpt(text: string): string {
 
 function generateExercises(
   title: string,
-  summary: string,
-  category: ArticleCategory,
+  content: string,
+  _category: ArticleCategory,
 ): ArticleExerciseSet {
-  const keywords = extractKeywords(`${title} ${summary}`);
-  const firstKeyword = keywords[0] ?? "the story";
-  const secondKeyword = keywords[1] ?? "people";
+  const sentences = extractSentences(content);
+  const keywords = extractKeywords(`${title} ${content}`);
+  const topic = keywords[0] ?? "the main issue";
+  const secondTopic = keywords[1] ?? "the people in the story";
+  const thirdTopic = keywords[2] ?? "the situation";
+  const trueStatements = sentences.slice(0, 3).map(toStatement);
 
   return {
     warmUpQuestions: [
-      `What do you already know about ${category.toLowerCase()} news?`,
-      `What words do you expect to see in an article titled "${title}"?`,
+      `Before reading, what do you think might happen in an article titled "${title}"?`,
+      `Which people, places, or problems do you expect this article to mention?`,
     ],
     fillInTheBlanks: [
       `The article is mainly about ______.`,
-      `${capitalize(firstKeyword)} is an important word in this story because ______.`,
-      `The article mentions ${secondKeyword} to explain ______.`,
+      `${capitalize(topic)} is important in this story because ______.`,
+      `The article mentions ${secondTopic} to explain ______.`,
     ],
     trueFalse: [
-      {
-        statement: `The article belongs to the ${category} category.`,
+      ...trueStatements.map((statement) => ({
+        statement,
         answer: true,
+      })),
+      {
+        statement: `The article says ${topic} is unrelated to the main events described.`,
+        answer: false,
       },
       {
-        statement: "The article summary gives no information about the story.",
+        statement: `The article says nothing in the situation affects people, places, or decisions.`,
         answer: false,
       },
     ],
     readingComprehension: [
       "What is the main idea of the article?",
-      "Who or what is affected by the news?",
-      "Which detail from the summary is most important?",
+      `What does the article say about ${topic}?`,
+      `How is ${secondTopic} connected to the main story?`,
+      "Which paragraph gives the most important detail, and why?",
     ],
     discussionQuestions: [
-      "Why might this story be useful for English learners?",
-      "How would you explain this story to a friend in two sentences?",
+      `What is your opinion about the way the article presents ${topic}?`,
+      `What question would you ask after reading the details about ${secondTopic}?`,
+      `How might ${thirdTopic} change if the situation continues?`,
     ],
     summaryTask:
-      "Write a three-sentence summary: one sentence for the main idea, one for an important detail, and one for your reaction.",
+      "Write a three-sentence summary: one sentence for what happened, one for an important detail from the article, and one for why it matters.",
   };
+}
+
+function extractSentences(text: string): string[] {
+  return text
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(
+      (sentence) =>
+        sentence.length >= 45 &&
+        sentence.length <= 180 &&
+        /[A-Za-z]/.test(sentence),
+    )
+    .slice(0, 8);
+}
+
+function toStatement(sentence: string): string {
+  return sentence.replace(/[.!?]+$/, ".");
 }
 
 function extractKeywords(text: string): string[] {
