@@ -103,7 +103,7 @@ const tr = {
   freeDailyNews: "%100 ücretsiz günlük İngilizce",
   newsTitle: "Öğrenenler için bugün",
   newsIntro:
-    "Şimdilik örnek yazılar kullanılıyor; ücretli API veya veritabanı olmadan deneyimi gösterir.",
+    "Her gün ücretsiz RSS kaynaklarından gelen gerçek İngilizce haberleri seviyene göre okuyup pratik yap.",
   readPractice: "Okuma pratiği",
   currentLevel: "Mevcut seviye",
   backToNews: "Haberlere dön",
@@ -162,7 +162,7 @@ export const translations = {
     freeDailyNews: "100% free daily English",
     newsTitle: "Today for learners",
     newsIntro:
-      "Mock articles for now, built to show how the real daily reading experience will feel without paid APIs or databases.",
+      "Read real English news from free RSS sources each day, filtered for your level and ready for practice.",
     readPractice: "Read practice",
     currentLevel: "Current level",
     backToNews: "Back to news",
@@ -220,7 +220,7 @@ export const translations = {
     freeDailyNews: "Inglés diario 100% gratis",
     newsTitle: "Hoy para estudiantes",
     newsIntro:
-      "Artículos de ejemplo por ahora, pensados para mostrar la experiencia sin APIs pagadas ni bases de datos.",
+      "Lee noticias reales en inglés de fuentes RSS gratuitas cada día, filtradas por tu nivel y listas para practicar.",
     readPractice: "Práctica de lectura",
     currentLevel: "Nivel actual",
     backToNews: "Volver a noticias",
@@ -277,7 +277,7 @@ export const translations = {
     freeDailyNews: "Anglais quotidien 100% gratuit",
     newsTitle: "Aujourd'hui pour apprendre",
     newsIntro:
-      "Des articles fictifs pour l'instant, afin de montrer l'expérience sans API payante ni base de données.",
+      "Lisez chaque jour de vraies actualités en anglais issues de flux RSS gratuits, filtrées selon votre niveau.",
     readPractice: "Lire l'exercice",
     currentLevel: "Niveau actuel",
     backToNews: "Retour aux actualités",
@@ -334,7 +334,7 @@ export const translations = {
     freeDailyNews: "100% kostenloses Tagesenglisch",
     newsTitle: "Heute für Lernende",
     newsIntro:
-      "Zurzeit Mock-Artikel, um das Leseerlebnis ohne bezahlte APIs oder Datenbanken zu zeigen.",
+      "Lies täglich echte englische Nachrichten aus kostenlosen RSS-Quellen, passend zu deinem Niveau gefiltert.",
     readPractice: "Leseübung",
     currentLevel: "Aktuelles Niveau",
     backToNews: "Zurück zu Nachrichten",
@@ -449,7 +449,7 @@ export const translations = {
     freeDailyNews: "Ежедневный английский бесплатно",
     newsTitle: "Сегодня для учащихся",
     newsIntro:
-      "Пока это тестовые статьи, чтобы показать опыт чтения без платных API и баз данных.",
+      "Читайте реальные новости на английском из бесплатных RSS-источников каждый день, с фильтром по вашему уровню.",
     readPractice: "Читать",
     currentLevel: "Текущий уровень",
     backToNews: "Назад к новостям",
@@ -506,7 +506,7 @@ export const translations = {
     freeDailyNews: "100% 免费每日英语",
     newsTitle: "今日学习新闻",
     newsIntro:
-      "目前使用模拟文章，展示无需付费 API 或数据库的每日阅读体验。",
+      "每天阅读来自免费 RSS 来源的真实英文新闻，并按你的水平筛选练习。",
     readPractice: "阅读练习",
     currentLevel: "当前级别",
     backToNews: "返回新闻",
@@ -561,7 +561,7 @@ export const translations = {
     freeDailyNews: "100%無料の毎日英語",
     newsTitle: "学習者向けの今日",
     newsIntro:
-      "今はモック記事です。有料APIやデータベースなしで読書体験を示します。",
+      "無料RSSソースから届く本物の英語ニュースを、毎日レベルに合わせて読んで練習できます。",
     readPractice: "読む練習",
     currentLevel: "現在のレベル",
     backToNews: "ニュースへ戻る",
