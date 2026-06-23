@@ -4,8 +4,6 @@ import { ArticleImage } from "@/components/article-image";
 import { ArticleExercises } from "@/components/article-exercises";
 import { Header } from "@/components/header";
 import { LocalizedCategory } from "@/components/localized-category";
-import { LocalizedText } from "@/components/localized-text";
-import { VocabularyList } from "@/components/vocabulary-list";
 import { getArticleById } from "@/lib/articles";
 import { levelOptions } from "@/lib/i18n";
 
@@ -108,18 +106,6 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
               Read the English article first, then use the activities below to
               check meaning, vocabulary, and discussion ideas.
             </p>
-          </section>
-
-          <section className="premium-card rounded-3xl p-5 sm:p-6">
-            <div className="flex items-center gap-3">
-              <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-slate-950 text-xs font-semibold text-white">
-                Aa
-              </span>
-              <h2 className="text-xl font-semibold text-slate-950">
-                <LocalizedText id="vocabulary" />
-              </h2>
-            </div>
-            <VocabularyList vocabulary={article.vocabulary} />
           </section>
 
           <ArticleExercises exercises={article.exercises} />

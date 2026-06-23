@@ -42,7 +42,7 @@ const supportedLevels: Level[] = [
 ];
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<InterfaceLanguage>("tr");
+  const [language, setLanguageState] = useState<InterfaceLanguage>("en");
   const [level, setLevelState] = useState<Level>("intermediate");
 
   useEffect(() => {
