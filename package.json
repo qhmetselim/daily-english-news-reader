@@ -1,0 +1,26 @@
+{
+  "name": "daily-english-news-reader",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "predev": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "update:articles": "tsx scripts/updateArticles.ts"
+  },
+  "dependencies": {
+    "next": "^15.3.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.11",
+    "@types/node": "^22.15.32",
+    "@types/react": "^19.0.12",
+    "@types/react-dom": "^19.0.4",
+    "tailwindcss": "^4.1.11",
+    "tsx": "^4.20.5",
+    "typescript": "^5.8.3"
+  }
+}
