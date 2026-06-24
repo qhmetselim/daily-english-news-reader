@@ -1,9 +1,9 @@
 import type { MetadataRoute } from "next";
-import { getArticles } from "@/lib/articles";
+import { getArticlesSync } from "@/lib/articles";
 import { absoluteUrl, articleUrl } from "@/lib/seo";
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const articles = await getArticles();
+export default function sitemap(): MetadataRoute.Sitemap {
+  const articles = getArticlesSync();
   const now = new Date();
 
   return [

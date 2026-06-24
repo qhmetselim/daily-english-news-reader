@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { InterfaceLanguage, Level } from "@/lib/i18n";
@@ -73,6 +74,17 @@ export async function getArticles(): Promise<Article[]> {
   const file = await readFile(articlesPath, "utf8");
   const data = JSON.parse(file) as ArticlesFile;
 
+  return normalizeArticlesFile(data);
+}
+
+export function getArticlesSync(): Article[] {
+  const file = readFileSync(articlesPath, "utf8");
+  const data = JSON.parse(file) as ArticlesFile;
+
+  return normalizeArticlesFile(data);
+}
+
+function normalizeArticlesFile(data: ArticlesFile): Article[] {
   const articles = (data.articles ?? [])
     .filter((article) => article.id && article.title && article.link)
     .map(normalizeArticle);

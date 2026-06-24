@@ -4,7 +4,7 @@ export const siteName = "Daily English News Reader";
 export const siteDescription =
   "Read daily English news articles with level-based reading practice, vocabulary support, and comprehension exercises.";
 
-const fallbackSiteUrl = "http://localhost:3000";
+const fallbackSiteUrl = "https://daily-english-news-reader.vercel.app";
 
 export function getSiteUrl(): string {
   const value =
