@@ -1,10 +1,41 @@
+import type { Metadata } from "next";
 import { Header } from "@/components/header";
 import { LocalizedText } from "@/components/localized-text";
 import { LevelBadge } from "@/components/level-badge";
 import { NewsExplorer } from "@/components/news-explorer";
 import { getArticles } from "@/lib/articles";
+import { absoluteUrl, siteName } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+
+const newsDescription =
+  "Browse the latest daily English news articles for reading practice, vocabulary learning, and comprehension exercises.";
+
+export const metadata: Metadata = {
+  title: "Daily English News",
+  description: newsDescription,
+  alternates: {
+    canonical: absoluteUrl("/news"),
+  },
+  openGraph: {
+    type: "website",
+    title: `Daily English News | ${siteName}`,
+    description: newsDescription,
+    url: absoluteUrl("/news"),
+    images: [
+      {
+        url: absoluteUrl("/study-newsroom.svg"),
+        alt: "Daily English news reading practice",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `Daily English News | ${siteName}`,
+    description: newsDescription,
+    images: [absoluteUrl("/study-newsroom.svg")],
+  },
+};
 
 export default async function NewsPage() {
   const articles = await getArticles();

@@ -168,7 +168,7 @@ function ArticleCard({
 
   return (
     <Link
-      href={`/article/${article.id}`}
+      href={`/article/${article.slug}`}
       className="premium-card group flex min-h-[26rem] flex-col overflow-hidden rounded-[1.5rem] p-0 transition hover:-translate-y-1 hover:border-blue-200 hover:bg-white sm:min-h-[28rem] sm:rounded-[1.75rem]"
     >
       <div className="relative overflow-hidden rounded-t-[1.5rem] sm:rounded-t-[1.75rem]">

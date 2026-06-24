@@ -27,6 +27,7 @@ export type ArticleExerciseSet = {
 
 export type Article = {
   id: string;
+  slug: string;
   title: string;
   link: string;
   summary: string;
@@ -72,15 +73,25 @@ export async function getArticles(): Promise<Article[]> {
   const file = await readFile(articlesPath, "utf8");
   const data = JSON.parse(file) as ArticlesFile;
 
-  return (data.articles ?? [])
+  const articles = (data.articles ?? [])
     .filter((article) => article.id && article.title && article.link)
     .map(normalizeArticle);
+
+  return withUniqueSlugs(articles);
 }
 
 export async function getArticleById(id: string): Promise<Article | undefined> {
   const articles = await getArticles();
 
   return articles.find((article) => article.id === id);
+}
+
+export async function getArticleBySlug(
+  slug: string,
+): Promise<Article | undefined> {
+  const articles = await getArticles();
+
+  return articles.find((article) => article.slug === slug || article.id === slug);
 }
 
 function normalizeArticle(article: RawArticle): Article {
@@ -95,6 +106,7 @@ function normalizeArticle(article: RawArticle): Article {
 
   return {
     id: article.id ?? slugify(title),
+    slug: slugify(title),
     title,
     link: article.link ?? "#",
     summary,
@@ -111,6 +123,21 @@ function normalizeArticle(article: RawArticle): Article {
     vocabulary: buildVocabulary(`${title} ${summary} ${content}`),
     exercises: normalizeExercises(article.exercises, title, content, category),
   };
+}
+
+function withUniqueSlugs(articles: Article[]): Article[] {
+  const counts = new Map<string, number>();
+
+  return articles.map((article) => {
+    const baseSlug = article.slug || slugify(article.title) || article.id;
+    const count = counts.get(baseSlug) ?? 0;
+    counts.set(baseSlug, count + 1);
+
+    return {
+      ...article,
+      slug: count === 0 ? baseSlug : `${baseSlug}-${count + 1}`,
+    };
+  });
 }
 
 function normalizeImageUrl(value: string | undefined): string | undefined {

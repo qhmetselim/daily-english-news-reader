@@ -1,41 +1,99 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArticleImage } from "@/components/article-image";
 import { ArticleExercises } from "@/components/article-exercises";
 import { Header } from "@/components/header";
 import { LocalizedCategory } from "@/components/localized-category";
-import { getArticleById } from "@/lib/articles";
+import { getArticleBySlug, type Article } from "@/lib/articles";
 import { levelOptions } from "@/lib/i18n";
+import {
+  absoluteUrl,
+  articleDescription,
+  articleUrl,
+  getArticleImageUrl,
+  siteName,
+} from "@/lib/seo";
 
 type ArticlePageProps = {
   params: Promise<{
-    id: string;
+    slug: string;
   }>;
 };
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: ArticlePageProps) {
-  const { id } = await params;
-  const article = await getArticleById(id);
+export async function generateMetadata({
+  params,
+}: ArticlePageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const article = await getArticleBySlug(slug);
+
+  if (!article) {
+    return {
+      title: "Article",
+      robots: {
+        index: false,
+        follow: false,
+      },
+    };
+  }
+
+  const description = articleDescription(article);
+  const url = articleUrl(article);
+  const imageUrl = getArticleImageUrl(article);
 
   return {
-    title: article
-      ? `${article.title} | Daily English News Reader`
-      : "Article | Daily English News Reader",
+    title: article.title,
+    description,
+    alternates: {
+      canonical: url,
+    },
+    openGraph: {
+      type: "article",
+      siteName,
+      title: article.title,
+      description,
+      url,
+      publishedTime: article.publishedDate,
+      modifiedTime: article.publishedDate,
+      authors: [article.source],
+      section: article.category,
+      tags: [article.category, article.level, "English news", "reading practice"],
+      images: [
+        {
+          url: imageUrl,
+          alt: article.title,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: article.title,
+      description,
+      images: [imageUrl],
+    },
   };
 }
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
-  const { id } = await params;
-  const article = await getArticleById(id);
+  const { slug } = await params;
+  const article = await getArticleBySlug(slug);
 
   if (!article) {
     notFound();
   }
 
+  const structuredData = buildArticleStructuredData(article);
+
   return (
     <main className="min-h-screen">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(structuredData).replace(/</g, "\\u003c"),
+        }}
+      />
       <Header />
       <article className="mx-auto grid w-full max-w-[88rem] grid-cols-1 items-start gap-5 px-4 py-6 sm:gap-8 sm:px-6 sm:py-10 lg:px-10 lg:py-14 xl:grid-cols-[minmax(0,1fr)_430px]">
         <div className="premium-shell flex flex-col rounded-[1.5rem] p-3 sm:rounded-[2.25rem] sm:p-6 lg:p-10">
@@ -113,6 +171,40 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       </article>
     </main>
   );
+}
+
+function buildArticleStructuredData(article: Article) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": articleUrl(article),
+    },
+    headline: article.title,
+    description: articleDescription(article),
+    image: [getArticleImageUrl(article)],
+    datePublished: article.publishedDate,
+    dateModified: article.publishedDate,
+    author: {
+      "@type": "Organization",
+      name: article.source,
+      url: article.link,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: siteName,
+      logo: {
+        "@type": "ImageObject",
+        url: absoluteUrl("/study-newsroom.svg"),
+      },
+    },
+    articleSection: article.category,
+    educationalLevel: getLevelLabel(article.level),
+    isAccessibleForFree: true,
+    inLanguage: "en",
+    url: articleUrl(article),
+  };
 }
 
 function getLevelLabel(level: string): string {

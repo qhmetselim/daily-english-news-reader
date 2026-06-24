@@ -1,8 +1,36 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Header } from "@/components/header";
 import { GreetingHero } from "@/components/greeting-hero";
 import { LevelSelector } from "@/components/level-selector";
 import { LocalizedText } from "@/components/localized-text";
+import { absoluteUrl, siteDescription, siteName } from "@/lib/seo";
+
+export const metadata: Metadata = {
+  title: siteName,
+  description: siteDescription,
+  alternates: {
+    canonical: absoluteUrl("/"),
+  },
+  openGraph: {
+    type: "website",
+    title: siteName,
+    description: siteDescription,
+    url: absoluteUrl("/"),
+    images: [
+      {
+        url: absoluteUrl("/study-newsroom.svg"),
+        alt: siteName,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteName,
+    description: siteDescription,
+    images: [absoluteUrl("/study-newsroom.svg")],
+  },
+};
 
 export default function Home() {
   return (
