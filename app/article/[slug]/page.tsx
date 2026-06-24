@@ -107,6 +107,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
           <ArticleImage
             category={article.category}
             imageUrl={article.imageUrl}
+            hasUsableImage={article.hasUsableImage}
             title={article.title}
             usesFallbackImage={article.usesFallbackImage}
             sizes="(max-width: 1024px) 100vw, 58vw"

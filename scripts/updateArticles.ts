@@ -1,4 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 type ArticleCategory =
@@ -29,8 +30,10 @@ type RssItem = {
   source: string;
   publishedDate: string;
   imageUrl?: string;
+  imageSourceType?: ArticleImageSourceType;
   imageCandidates?: ImageCandidate[];
   usesFallbackImage?: boolean;
+  hasUsableImage?: boolean;
   fallbackCategory: ArticleCategory;
 };
 
@@ -56,6 +59,8 @@ type OutputArticle = {
   source: string;
   publishedDate: string;
   imageUrl?: string;
+  imageSourceType: ArticleImageSourceType;
+  hasUsableImage: boolean;
   usesFallbackImage?: boolean;
   category: ArticleCategory;
   level: EnglishLevel;
@@ -72,9 +77,29 @@ type FailedFeed = {
   reason: string;
 };
 
+type ArticleImageSourceType =
+  | "media"
+  | "enclosure"
+  | "og"
+  | "twitter"
+  | "structured"
+  | "fallback";
+
 type ImageCandidate = {
   url: string;
-  source: "og" | "twitter" | "media" | "enclosure" | "thumbnail";
+  source: Exclude<ArticleImageSourceType, "fallback">;
+  priority?: number;
+  width?: number;
+  height?: number;
+};
+
+type ImageRunStats = {
+  totalCandidates: number;
+  usableRealImages: number;
+  rejectedMissingImage: number;
+  rejectedLowQualityImage: number;
+  localizedImageCount: number;
+  downloadedImageUrls: string[];
 };
 
 const CATEGORIES: ArticleCategory[] = [
@@ -95,7 +120,16 @@ const ENGLISH_LEVELS: EnglishLevel[] = [
 const MIN_ARTICLES_PER_CATEGORY = 10;
 const MIN_ARTICLES_PER_CATEGORY_LEVEL = 2;
 const MAX_ARTICLES_PER_CATEGORY = 20;
-const MIN_TOTAL_ARTICLES = 100;
+const articleUpdateConfig = {
+  targetFinalArticleCount: 100,
+  candidateFetchMultiplier: 3,
+  minimumImageWidth: 600,
+  maximumFallbackUsage: 0,
+} as const;
+const MIN_TOTAL_ARTICLES = articleUpdateConfig.targetFinalArticleCount;
+const CANDIDATE_ARTICLE_TARGET =
+  articleUpdateConfig.targetFinalArticleCount *
+  articleUpdateConfig.candidateFetchMultiplier;
 const MAX_ARTICLES = CATEGORIES.length * MAX_ARTICLES_PER_CATEGORY;
 const RECENT_ARTICLE_DAYS = 7;
 const FEED_TIMEOUT_MS = 12_000;
@@ -251,9 +285,20 @@ function isCategoryFallbackImage(value: string | undefined): boolean {
   );
 }
 
+function localImageExists(value: string | undefined): boolean {
+  if (!value?.startsWith("/")) {
+    return true;
+  }
+
+  return existsSync(path.join(process.cwd(), "public", value));
+}
+
 async function main() {
   console.log("Starting RSS article update...");
   console.log(`Fetching ${feeds.length} free RSS feeds.`);
+  console.log(
+    `Targeting ${articleUpdateConfig.targetFinalArticleCount} final articles from up to ${CANDIDATE_ARTICLE_TARGET} candidates.`,
+  );
 
   const existingArticles = await readExistingArticles();
   const feedResults = await Promise.allSettled(feeds.map(fetchFeed));
@@ -278,7 +323,7 @@ async function main() {
       item.link = normalizedUrl;
       return Boolean(item.title && item.summary);
     })
-    .slice(0, MAX_ARTICLES * 3);
+    .slice(0, CANDIDATE_ARTICLE_TARGET);
 
   console.log(
     `Found ${uniqueItems.length} unique RSS items. Fetching full article text...`,
@@ -288,7 +333,7 @@ async function main() {
   let checkedArticleCount = 0;
 
   for (const item of uniqueItems) {
-    if (enrichedItems.length >= MAX_ARTICLES) {
+    if (enrichedItems.length >= CANDIDATE_ARTICLE_TARGET) {
       break;
     }
 
@@ -298,7 +343,7 @@ async function main() {
     if (enrichedItem) {
       enrichedItems.push(enrichedItem);
       console.log(
-        `Added full article ${enrichedItems.length}/${MAX_ARTICLES}: ${item.title}`,
+        `Added full article ${enrichedItems.length}/${CANDIDATE_ARTICLE_TARGET}: ${item.title}`,
       );
     } else if (checkedArticleCount % 10 === 0) {
       console.log(
@@ -317,12 +362,24 @@ async function main() {
     .filter((item) => !enrichedLinks.has(normalizeUrl(item.link)))
     .map(toRssFallbackArticle)
     .map((article) => keepStableArticleId(article, existingArticles));
+  const candidateArticles = [...freshArticles, ...rssFallbackArticles];
+  const localizedResult = await localizeArticleImages(candidateArticles);
   let articlesToWrite = balanceArticles(
-    [...freshArticles, ...rssFallbackArticles],
+    localizedResult.articles,
     existingArticles,
   );
-  articlesToWrite = await localizeArticleImages(articlesToWrite);
+  articlesToWrite = replaceRemainingFallbackImageArticles(articlesToWrite);
+  articlesToWrite = limitFallbackUsage(articlesToWrite);
+  articlesToWrite = topUpFinalArticlesWithRealImages(
+    articlesToWrite,
+    localizedResult.articles,
+  );
+  await removeUnusedDownloadedImages(
+    localizedResult.stats.downloadedImageUrls,
+    articlesToWrite,
+  );
   const stats = getArticleStats(articlesToWrite);
+  const finalImageStats = getFinalImageStats(articlesToWrite);
 
   await mkdir(path.dirname(OUTPUT_PATH), { recursive: true });
   await writeFile(
@@ -330,7 +387,8 @@ async function main() {
     `${JSON.stringify(
       {
         generatedAt: new Date().toISOString(),
-        maxArticles: MAX_ARTICLES,
+        maxArticles: articleUpdateConfig.targetFinalArticleCount,
+        articleUpdateConfig,
         articleCount: articlesToWrite.length,
         failedFeedCount: failedFeeds.length,
         failedFeeds,
@@ -351,10 +409,10 @@ async function main() {
   );
 
   console.log(`Saved ${articlesToWrite.length} articles to ${OUTPUT_PATH}`);
+  logImageRunStats(localizedResult.stats, finalImageStats);
   console.log(`Fresh readable articles considered: ${freshArticles.length}`);
   console.log(`RSS summary fallback articles considered: ${rssFallbackArticles.length}`);
   logArticleStats(stats);
-  logImageStats(articlesToWrite);
 
   for (const failure of failedFeeds) {
     console.warn(`Feed skipped: ${failure.name} - ${failure.reason}`);
@@ -434,8 +492,6 @@ function balanceArticles(
     () => true,
     Math.min(MIN_TOTAL_ARTICLES, candidates.length),
   );
-
-  addBestCandidates(selected, selectedIds, candidates, () => true, candidates.length);
 
   return rebalanceCategoryLevels(selected).sort(compareByRecency);
 }
@@ -562,11 +618,19 @@ function compareArticleQuality(a: OutputArticle, b: OutputArticle): number {
   }
 
   const fallbackImageDifference =
-    Number(a.usesFallbackImage === true || !a.imageUrl) -
-    Number(b.usesFallbackImage === true || !b.imageUrl);
+    Number(!a.hasUsableImage || a.usesFallbackImage === true || !a.imageUrl) -
+    Number(!b.hasUsableImage || b.usesFallbackImage === true || !b.imageUrl);
 
   if (fallbackImageDifference !== 0) {
     return fallbackImageDifference;
+  }
+
+  const imageSourceDifference =
+    getArticleImageSourceScore(b.imageSourceType) -
+    getArticleImageSourceScore(a.imageSourceType);
+
+  if (imageSourceDifference !== 0) {
+    return imageSourceDifference;
   }
 
   const recentDifference = Number(isRecentArticle(b)) - Number(isRecentArticle(a));
@@ -576,6 +640,19 @@ function compareArticleQuality(a: OutputArticle, b: OutputArticle): number {
   }
 
   return compareByRecency(a, b);
+}
+
+function getArticleImageSourceScore(source: ArticleImageSourceType): number {
+  const scores: Record<ArticleImageSourceType, number> = {
+    media: 500,
+    enclosure: 420,
+    og: 360,
+    twitter: 320,
+    structured: 280,
+    fallback: 0,
+  };
+
+  return scores[source];
 }
 
 function compareByRecency(a: OutputArticle, b: OutputArticle): number {
@@ -661,51 +738,175 @@ function logArticleStats(stats: ArticleStats) {
   }
 }
 
-function logImageStats(articles: OutputArticle[]) {
-  const fallbackImageCount = articles.filter((article) => article.usesFallbackImage).length;
-  const realImageCount = articles.length - fallbackImageCount;
+type FinalImageStats = {
+  publishedArticles: number;
+  realImageCount: number;
+  fallbackImageCount: number;
+  imageCoveragePercentage: number;
+  byCategory: Map<
+    ArticleCategory,
+    { total: number; realImageCount: number; fallbackImageCount: number }
+  >;
+};
 
-  console.log(`Articles with real images: ${realImageCount}`);
-  console.log(`Articles with fallback images: ${fallbackImageCount}`);
+function getFinalImageStats(articles: OutputArticle[]): FinalImageStats {
+  const byCategory: FinalImageStats["byCategory"] = new Map();
+
+  for (const category of CATEGORIES) {
+    byCategory.set(category, {
+      total: 0,
+      realImageCount: 0,
+      fallbackImageCount: 0,
+    });
+  }
+
+  for (const article of articles) {
+    const categoryStats = byCategory.get(article.category) ?? {
+      total: 0,
+      realImageCount: 0,
+      fallbackImageCount: 0,
+    };
+
+    categoryStats.total += 1;
+
+    if (article.hasUsableImage && !article.usesFallbackImage) {
+      categoryStats.realImageCount += 1;
+    } else {
+      categoryStats.fallbackImageCount += 1;
+    }
+
+    byCategory.set(article.category, categoryStats);
+  }
+
+  const realImageCount = articles.filter(
+    (article) => article.hasUsableImage && !article.usesFallbackImage,
+  ).length;
+  const fallbackImageCount = articles.length - realImageCount;
+
+  return {
+    publishedArticles: articles.length,
+    realImageCount,
+    fallbackImageCount,
+    imageCoveragePercentage:
+      articles.length > 0 ? Math.round((realImageCount / articles.length) * 100) : 0,
+    byCategory,
+  };
 }
 
-async function localizeArticleImages(articles: OutputArticle[]): Promise<OutputArticle[]> {
+function logImageRunStats(
+  candidateStats: ImageRunStats,
+  finalStats: FinalImageStats,
+) {
+  console.log("Image coverage report:");
+  console.log(`- total candidate articles fetched: ${candidateStats.totalCandidates}`);
+  console.log(
+    `- total articles with usable real images: ${candidateStats.usableRealImages}`,
+  );
+  console.log(
+    `- total rejected due to missing image: ${candidateStats.rejectedMissingImage}`,
+  );
+  console.log(
+    `- total rejected due to low-quality image: ${candidateStats.rejectedLowQualityImage}`,
+  );
+  console.log(`- total final published articles: ${finalStats.publishedArticles}`);
+  console.log(
+    `- final published articles with real images: ${finalStats.realImageCount}`,
+  );
+  console.log(
+    `- final published articles using fallback images: ${finalStats.fallbackImageCount}`,
+  );
+  console.log(`- image coverage percentage: ${finalStats.imageCoveragePercentage}%`);
+  console.log("- per-category image coverage:");
+
+  for (const category of CATEGORIES) {
+    const categoryStats = finalStats.byCategory.get(category);
+    const total = categoryStats?.total ?? 0;
+    const realImageCount = categoryStats?.realImageCount ?? 0;
+    const fallbackImageCount = categoryStats?.fallbackImageCount ?? 0;
+    const coverage = total > 0 ? Math.round((realImageCount / total) * 100) : 0;
+    console.log(
+      `  - ${category}: ${realImageCount}/${total} real images (${coverage}%), ${fallbackImageCount} fallback`,
+    );
+  }
+}
+
+async function localizeArticleImages(
+  articles: OutputArticle[],
+): Promise<{ articles: OutputArticle[]; stats: ImageRunStats }> {
   await mkdir(LOCAL_IMAGE_DIR, { recursive: true });
 
   const localizedArticles: OutputArticle[] = [];
-  let localizedCount = 0;
-  let failedCount = 0;
+  const stats: ImageRunStats = {
+    totalCandidates: articles.length,
+    usableRealImages: 0,
+    rejectedMissingImage: 0,
+    rejectedLowQualityImage: 0,
+    localizedImageCount: 0,
+    downloadedImageUrls: [],
+  };
 
-  for (const article of removeUnneededFallbackImageArticles(articles)) {
-    if (!article.imageUrl || article.usesFallbackImage || article.imageUrl.startsWith("/")) {
-      localizedArticles.push(article);
-      continue;
-    }
-
-    const localizedImageUrl = await downloadArticleImage(article);
-
-    if (localizedImageUrl) {
-      localizedCount += 1;
+  for (const article of articles) {
+    if (
+      article.hasUsableImage &&
+      article.imageUrl?.startsWith("/") &&
+      localImageExists(article.imageUrl)
+    ) {
+      stats.usableRealImages += 1;
       localizedArticles.push({
         ...article,
-        imageUrl: localizedImageUrl,
         usesFallbackImage: false,
+        imageSourceType:
+          article.imageSourceType === "fallback" ? "media" : article.imageSourceType,
       });
       continue;
     }
 
-    failedCount += 1;
-    localizedArticles.push({
-      ...article,
-      imageUrl: categoryFallbackImages[article.category],
-      usesFallbackImage: true,
-    });
+    if (!article.imageUrl || article.usesFallbackImage) {
+      stats.rejectedMissingImage += 1;
+      localizedArticles.push(withFallbackImage(article));
+      continue;
+    }
+
+    const localizedImage = await downloadArticleImage(article);
+
+    if (localizedImage.url) {
+      stats.localizedImageCount += 1;
+      stats.usableRealImages += 1;
+      stats.downloadedImageUrls.push(localizedImage.url);
+      localizedArticles.push({
+        ...article,
+        imageUrl: localizedImage.url,
+        usesFallbackImage: false,
+        hasUsableImage: true,
+      });
+      continue;
+    }
+
+    if (localizedImage.reason === "missing") {
+      stats.rejectedMissingImage += 1;
+    } else {
+      stats.rejectedLowQualityImage += 1;
+    }
+
+    localizedArticles.push(withFallbackImage(article));
   }
 
-  console.log(`Localized article images: ${localizedCount}`);
-  console.log(`Article image downloads failed: ${failedCount}`);
+  console.log(`Localized article images: ${stats.localizedImageCount}`);
 
-  return replaceRemainingFallbackImageArticles(localizedArticles);
+  return {
+    articles: removeUnneededFallbackImageArticles(localizedArticles),
+    stats,
+  };
+}
+
+function withFallbackImage(article: OutputArticle): OutputArticle {
+  return {
+    ...article,
+    imageUrl: categoryFallbackImages[article.category],
+    imageSourceType: "fallback",
+    hasUsableImage: false,
+    usesFallbackImage: true,
+  };
 }
 
 function replaceRemainingFallbackImageArticles(
@@ -714,7 +915,7 @@ function replaceRemainingFallbackImageArticles(
   const repairedArticles = articles.map((article) => ({ ...article }));
 
   for (const fallbackArticle of [...repairedArticles].filter(
-    (article) => article.usesFallbackImage,
+    (article) => article.usesFallbackImage || !article.hasUsableImage,
   )) {
     const fallbackIndex = repairedArticles.findIndex(
       (article) => article.id === fallbackArticle.id,
@@ -727,6 +928,7 @@ function replaceRemainingFallbackImageArticles(
     const sameCategoryDonor = repairedArticles.find(
       (article) =>
         article.category === fallbackArticle.category &&
+        article.hasUsableImage &&
         !article.usesFallbackImage &&
         article.imageUrl &&
         article.level !== fallbackArticle.level &&
@@ -743,6 +945,7 @@ function replaceRemainingFallbackImageArticles(
     const crossCategoryDonor = repairedArticles.find(
       (article) =>
         article.category !== fallbackArticle.category &&
+        article.hasUsableImage &&
         !article.usesFallbackImage &&
         article.imageUrl &&
         getCategoryCount(repairedArticles, article.category) >
@@ -779,6 +982,7 @@ function topUpUnderfilledCategoriesWithRealImages(
       const donor = repairedArticles.find(
         (article) =>
           article.category !== category &&
+          article.hasUsableImage &&
           !article.usesFallbackImage &&
           article.imageUrl &&
           getCategoryCount(repairedArticles, article.category) >
@@ -799,6 +1003,102 @@ function topUpUnderfilledCategoriesWithRealImages(
   return repairedArticles;
 }
 
+function limitFallbackUsage(articles: OutputArticle[]): OutputArticle[] {
+  const fallbackLimit = articleUpdateConfig.maximumFallbackUsage;
+  const prunedArticles = [...articles];
+
+  for (const article of [...prunedArticles]
+    .filter((candidate) => candidate.usesFallbackImage || !candidate.hasUsableImage)
+    .sort(compareByRecency)) {
+    const fallbackCount = prunedArticles.filter(
+      (candidate) => candidate.usesFallbackImage || !candidate.hasUsableImage,
+    ).length;
+
+    if (fallbackCount <= fallbackLimit) {
+      break;
+    }
+
+    const index = prunedArticles.findIndex((candidate) => candidate.id === article.id);
+
+    if (index === -1) {
+      continue;
+    }
+
+    const withoutArticle = [
+      ...prunedArticles.slice(0, index),
+      ...prunedArticles.slice(index + 1),
+    ];
+
+    if (canRemoveArticle(withoutArticle, article.category, article.level)) {
+      prunedArticles.splice(index, 1);
+    }
+  }
+
+  return prunedArticles;
+}
+
+function topUpFinalArticlesWithRealImages(
+  articles: OutputArticle[],
+  candidates: OutputArticle[],
+): OutputArticle[] {
+  const toppedUpArticles = [...articles];
+  const selectedIds = new Set(toppedUpArticles.map((article) => article.id));
+
+  for (const candidate of dedupeArticles(candidates)) {
+    if (toppedUpArticles.length >= MIN_TOTAL_ARTICLES) {
+      break;
+    }
+
+    if (
+      selectedIds.has(candidate.id) ||
+      !candidate.hasUsableImage ||
+      candidate.usesFallbackImage ||
+      !candidate.imageUrl ||
+      getCategoryCount(toppedUpArticles, candidate.category) >=
+        MAX_ARTICLES_PER_CATEGORY
+    ) {
+      continue;
+    }
+
+    toppedUpArticles.push(candidate);
+    selectedIds.add(candidate.id);
+  }
+
+  return toppedUpArticles.sort(compareByRecency);
+}
+
+async function removeUnusedDownloadedImages(
+  downloadedImageUrls: string[],
+  finalArticles: OutputArticle[],
+) {
+  const finalImageUrls = new Set(
+    finalArticles
+      .map((article) => article.imageUrl)
+      .filter((imageUrl): imageUrl is string =>
+        Boolean(imageUrl?.startsWith(LOCAL_IMAGE_PUBLIC_PATH)),
+      ),
+  );
+  let removedCount = 0;
+
+  for (const imageUrl of new Set(downloadedImageUrls)) {
+    if (
+      finalImageUrls.has(imageUrl) ||
+      !imageUrl.startsWith(`${LOCAL_IMAGE_PUBLIC_PATH}/`)
+    ) {
+      continue;
+    }
+
+    try {
+      await unlink(path.join(LOCAL_IMAGE_DIR, path.basename(imageUrl)));
+      removedCount += 1;
+    } catch {
+      continue;
+    }
+  }
+
+  console.log(`Removed unused downloaded candidate images: ${removedCount}`);
+}
+
 function getCategoryLevelCount(
   articles: OutputArticle[],
   category: ArticleCategory,
@@ -809,11 +1109,19 @@ function getCategoryLevelCount(
   ).length;
 }
 
-async function downloadArticleImage(article: OutputArticle): Promise<string | null> {
+async function downloadArticleImage(
+  article: OutputArticle,
+): Promise<{ url: string | null; reason?: "missing" | "low-quality" }> {
   const imageUrl = article.imageUrl;
 
   if (!imageUrl) {
-    return null;
+    return { url: null, reason: "missing" };
+  }
+
+  const urlQualityProblem = getImageUrlQualityProblem(imageUrl);
+
+  if (urlQualityProblem) {
+    return { url: null, reason: "low-quality" };
   }
 
   try {
@@ -825,29 +1133,187 @@ async function downloadArticleImage(article: OutputArticle): Promise<string | nu
     });
 
     if (!response.ok) {
-      return null;
+      return { url: null, reason: "low-quality" };
     }
 
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
     const extension = getImageExtension(contentType, imageUrl);
 
     if (!extension) {
-      return null;
+      return { url: null, reason: "low-quality" };
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
+    const validationProblem = getDownloadedImageQualityProblem(buffer, imageUrl);
 
-    if (buffer.length < 8_000) {
-      return null;
+    if (validationProblem) {
+      return { url: null, reason: "low-quality" };
     }
 
     const fileName = `${article.id}.${extension}`;
     await writeFile(path.join(LOCAL_IMAGE_DIR, fileName), buffer);
 
-    return `${LOCAL_IMAGE_PUBLIC_PATH}/${fileName}`;
+    return { url: `${LOCAL_IMAGE_PUBLIC_PATH}/${fileName}` };
   } catch {
+    return { url: null, reason: "low-quality" };
+  }
+}
+
+function getImageUrlQualityProblem(value: string): string | null {
+  const normalized = normalizeImageUrl(value);
+
+  if (!normalized) {
+    return "missing";
+  }
+
+  if (hasSuspiciousLowResolutionPattern(normalized)) {
+    return "suspicious low-resolution URL";
+  }
+
+  const dimensions = inferImageDimensions(normalized);
+  const queryWidth = getImageQueryNumber(normalized, ["w", "width", "maxwidth"]);
+  const queryHeight = getImageQueryNumber(normalized, ["h", "height", "maxheight"]);
+  const width = dimensions?.width ?? queryWidth;
+  const height = dimensions?.height ?? queryHeight;
+
+  if (width && width < articleUpdateConfig.minimumImageWidth) {
+    return "image URL width is too small";
+  }
+
+  if (height && height < 270) {
+    return "image URL height is too small";
+  }
+
+  return null;
+}
+
+function getDownloadedImageQualityProblem(
+  buffer: Buffer,
+  imageUrl: string,
+): string | null {
+  if (buffer.length < 8_000) {
+    return "image file is too small";
+  }
+
+  const dimensions = readImageDimensions(buffer) ?? inferImageDimensions(imageUrl);
+
+  if (!dimensions) {
     return null;
   }
+
+  if (dimensions.width < articleUpdateConfig.minimumImageWidth) {
+    return "downloaded image width is too small";
+  }
+
+  if (dimensions.height < 270) {
+    return "downloaded image height is too small";
+  }
+
+  const aspectRatio = dimensions.width / Math.max(dimensions.height, 1);
+
+  if (aspectRatio < 0.75 || aspectRatio > 4.5) {
+    return "downloaded image shape looks like an icon or banner";
+  }
+
+  return null;
+}
+
+function readImageDimensions(buffer: Buffer): { width: number; height: number } | null {
+  return (
+    readPngDimensions(buffer) ??
+    readJpegDimensions(buffer) ??
+    readWebpDimensions(buffer)
+  );
+}
+
+function readPngDimensions(buffer: Buffer): { width: number; height: number } | null {
+  if (
+    buffer.length < 24 ||
+    buffer.toString("ascii", 1, 4) !== "PNG" ||
+    buffer.toString("ascii", 12, 16) !== "IHDR"
+  ) {
+    return null;
+  }
+
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20),
+  };
+}
+
+function readJpegDimensions(buffer: Buffer): { width: number; height: number } | null {
+  if (buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8) {
+    return null;
+  }
+
+  let offset = 2;
+
+  while (offset + 9 < buffer.length) {
+    if (buffer[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+
+    const marker = buffer[offset + 1];
+    const length = buffer.readUInt16BE(offset + 2);
+
+    if (length < 2) {
+      return null;
+    }
+
+    if (
+      [
+        0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce,
+        0xcf,
+      ].includes(marker)
+    ) {
+      return {
+        height: buffer.readUInt16BE(offset + 5),
+        width: buffer.readUInt16BE(offset + 7),
+      };
+    }
+
+    offset += 2 + length;
+  }
+
+  return null;
+}
+
+function readWebpDimensions(buffer: Buffer): { width: number; height: number } | null {
+  if (
+    buffer.length < 30 ||
+    buffer.toString("ascii", 0, 4) !== "RIFF" ||
+    buffer.toString("ascii", 8, 12) !== "WEBP"
+  ) {
+    return null;
+  }
+
+  const chunkType = buffer.toString("ascii", 12, 16);
+
+  if (chunkType === "VP8X") {
+    return {
+      width: 1 + buffer.readUIntLE(24, 3),
+      height: 1 + buffer.readUIntLE(27, 3),
+    };
+  }
+
+  if (chunkType === "VP8L" && buffer.length >= 25) {
+    const bits = buffer.readUInt32LE(21);
+
+    return {
+      width: (bits & 0x3fff) + 1,
+      height: ((bits >> 14) & 0x3fff) + 1,
+    };
+  }
+
+  if (chunkType === "VP8 " && buffer.length >= 30) {
+    return {
+      width: buffer.readUInt16LE(26) & 0x3fff,
+      height: buffer.readUInt16LE(28) & 0x3fff,
+    };
+  }
+
+  return null;
 }
 
 function getImageExtension(contentType: string, imageUrl: string): string | null {
@@ -941,6 +1407,11 @@ function normalizeOutputArticle(article: OutputArticle): OutputArticle {
   const normalizedImageUrl = article.imageUrl
     ? normalizeImageUrl(article.imageUrl)
     : undefined;
+  const hasRealImageUrl = Boolean(
+    normalizedImageUrl &&
+      !isCategoryFallbackImage(normalizedImageUrl) &&
+      localImageExists(normalizedImageUrl),
+  );
   const paragraphs =
     article.paragraphs?.filter((paragraph) => paragraph.trim().length > 0) ??
     content
@@ -951,11 +1422,19 @@ function normalizeOutputArticle(article: OutputArticle): OutputArticle {
   return {
     ...article,
     link: normalizeUrl(article.link),
-    imageUrl: normalizedImageUrl ?? categoryFallbackImages[category],
+    imageUrl: hasRealImageUrl ? normalizedImageUrl : categoryFallbackImages[category],
+    imageSourceType:
+      article.imageSourceType &&
+      article.imageSourceType !== "fallback" &&
+      hasRealImageUrl
+        ? article.imageSourceType
+        : hasRealImageUrl
+          ? "media"
+          : "fallback",
+    hasUsableImage: hasRealImageUrl && article.usesFallbackImage !== true,
     usesFallbackImage:
       article.usesFallbackImage === true ||
-      !normalizedImageUrl ||
-      isCategoryFallbackImage(normalizedImageUrl),
+      !hasRealImageUrl,
     category,
     level: normalizeEnglishLevel(article.level),
     publishedDate: normalizeDate(article.publishedDate),
@@ -1025,6 +1504,7 @@ async function fetchFeed(feed: FeedSource): Promise<RssItem[]> {
       ),
     );
     const imageCandidates = extractRssImageCandidates(block);
+    const imageCandidate = chooseBestImageCandidate(imageCandidates);
 
     return {
       title,
@@ -1032,7 +1512,8 @@ async function fetchFeed(feed: FeedSource): Promise<RssItem[]> {
       summary,
       source: feed.name,
       publishedDate,
-      imageUrl: chooseBestImageUrl(imageCandidates),
+      imageUrl: imageCandidate?.url,
+      imageSourceType: imageCandidate?.source,
       imageCandidates,
       fallbackCategory: feed.fallbackCategory,
     };
@@ -1094,10 +1575,10 @@ async function enrichWithFullText(item: RssItem): Promise<EnrichedRssItem | null
   const paragraphs = extractReadableParagraphs(html);
   const content = paragraphs.join("\n\n");
   const imageCandidates = [
-    ...extractHtmlImageCandidates(html, item.link),
     ...(item.imageCandidates ?? []),
+    ...extractHtmlImageCandidates(html, item.link),
   ];
-  const imageUrl = chooseBestImageUrl(imageCandidates);
+  const imageCandidate = chooseBestImageCandidate(imageCandidates);
 
   if (!isReadableFullArticle(content, paragraphs)) {
     console.warn(`Article skipped: ${item.title} - full text was too short or noisy`);
@@ -1106,7 +1587,8 @@ async function enrichWithFullText(item: RssItem): Promise<EnrichedRssItem | null
 
   return {
     ...item,
-    imageUrl,
+    imageUrl: imageCandidate?.url,
+    imageSourceType: imageCandidate?.source,
     imageCandidates,
     content,
     paragraphs,
@@ -1132,18 +1614,9 @@ function readAtomLink(xml: string): string {
 
 function extractRssImageCandidates(xml: string): ImageCandidate[] {
   return [
-    ...readTagAttributes(xml, "media:content", "url").map((url) => ({
-      url,
-      source: "media" as const,
-    })),
-    ...readTagAttributes(xml, "enclosure", "url").map((url) => ({
-      url,
-      source: "enclosure" as const,
-    })),
-    ...readTagAttributes(xml, "media:thumbnail", "url").map((url) => ({
-      url,
-      source: "thumbnail" as const,
-    })),
+    ...readImageTagCandidates(xml, "media:content", "media", 600),
+    ...readImageTagCandidates(xml, "media:thumbnail", "media", 550),
+    ...readImageTagCandidates(xml, "enclosure", "enclosure", 500),
   ];
 }
 
@@ -1153,14 +1626,159 @@ function extractHtmlImageCandidates(html: string, pageUrl: string): ImageCandida
       .map((url) => ({
         url: resolveUrl(url, pageUrl),
         source: "og" as const,
+        priority: 400,
       })),
     ...readMetaContentValues(html, ["twitter:image", "twitter:image:src"]).map(
       (url) => ({
         url: resolveUrl(url, pageUrl),
         source: "twitter" as const,
+        priority: 350,
       }),
     ),
+    ...extractStructuredImageCandidates(html, pageUrl),
   ];
+}
+
+function readImageTagCandidates(
+  xml: string,
+  tagName: string,
+  source: ImageCandidate["source"],
+  priority: number,
+): ImageCandidate[] {
+  const escapedTag = tagName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const tags = xml.match(new RegExp(`<${escapedTag}\\b[^>]*>`, "gi")) ?? [];
+
+  return tags
+    .map((tag) => ({
+      url: cleanText(readHtmlAttribute(tag, "url")),
+      source,
+      priority,
+      width: readPositiveIntegerAttribute(tag, "width"),
+      height: readPositiveIntegerAttribute(tag, "height"),
+    }))
+    .filter((candidate) => Boolean(candidate.url));
+}
+
+function readPositiveIntegerAttribute(
+  tag: string,
+  attributeName: string,
+): number | undefined {
+  const value = Number(readHtmlAttribute(tag, attributeName));
+
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function extractStructuredImageCandidates(
+  html: string,
+  pageUrl: string,
+): ImageCandidate[] {
+  const scriptBlocks = [
+    ...html.matchAll(
+      /<script\b(?=[^>]*type=["']application\/ld\+json["'])[^>]*>([\s\S]*?)<\/script>/gi,
+    ),
+  ];
+  const candidates: ImageCandidate[] = [];
+
+  for (const scriptBlock of scriptBlocks) {
+    const json = decodeHtml(scriptBlock[1]).trim();
+
+    try {
+      collectStructuredImages(JSON.parse(json), pageUrl, candidates);
+    } catch {
+      continue;
+    }
+  }
+
+  return candidates.sort(compareImageCandidates);
+}
+
+function collectStructuredImages(
+  value: unknown,
+  pageUrl: string,
+  candidates: ImageCandidate[],
+) {
+  if (!value) {
+    return;
+  }
+
+  if (typeof value === "string") {
+    const url = resolveUrl(value, pageUrl);
+
+    if (url) {
+      candidates.push({ url, source: "structured", priority: 300 });
+    }
+
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectStructuredImages(item, pageUrl, candidates);
+    }
+
+    return;
+  }
+
+  if (typeof value !== "object") {
+    return;
+  }
+
+  const record = value as Record<string, unknown>;
+  const structuredType = Array.isArray(record["@type"])
+    ? record["@type"].join(" ")
+    : String(record["@type"] ?? "");
+  const directImageUrl = record.contentUrl ?? record.url;
+
+  if (
+    typeof directImageUrl === "string" &&
+    /image/i.test(structuredType + String(record.encodingFormat ?? ""))
+  ) {
+    candidates.push({
+      url: resolveUrl(directImageUrl, pageUrl),
+      source: "structured",
+      priority: 300,
+      width: readStructuredNumber(record.width),
+      height: readStructuredNumber(record.height),
+    });
+  }
+
+  const imageValue = record.image ?? record.thumbnailUrl ?? record.primaryImageOfPage;
+
+  if (imageValue) {
+    const beforeCount = candidates.length;
+    collectStructuredImages(imageValue, pageUrl, candidates);
+    const width = typeof record.width === "number" ? record.width : undefined;
+    const height = typeof record.height === "number" ? record.height : undefined;
+
+    for (const candidate of candidates.slice(beforeCount)) {
+      candidate.width ??= width;
+      candidate.height ??= height;
+    }
+  }
+
+  for (const key of ["@graph", "mainEntity", "itemListElement"]) {
+    collectStructuredImages(record[key], pageUrl, candidates);
+  }
+}
+
+function readStructuredNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/[^0-9.]/g, ""));
+
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+  }
+
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+
+    return readStructuredNumber(record.value);
+  }
+
+  return undefined;
 }
 
 function readMetaContentValues(html: string, names: string[]): string[] {
@@ -1188,25 +1806,6 @@ function readHtmlAttribute(tag: string, attributeName: string): string {
   );
 
   return cleanText(match?.[1] ?? "");
-}
-
-function readTagAttributes(
-  xml: string,
-  tagName: string,
-  attributeName: string,
-): string[] {
-  const escapedTag = tagName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const escapedAttribute = attributeName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const tags = xml.match(new RegExp(`<${escapedTag}\\b[^>]*>`, "gi")) ?? [];
-
-  return tags
-    .map((tag) =>
-      cleanText(
-        tag.match(new RegExp(`\\b${escapedAttribute}=["']([^"']+)["']`, "i"))
-          ?.[1] ?? "",
-      ),
-    )
-    .filter(Boolean);
 }
 
 function cleanText(value: string): string {
@@ -1375,15 +1974,22 @@ function resolveUrl(value: string, baseUrl: string): string {
   }
 }
 
-function chooseBestImageUrl(candidates: ImageCandidate[]): string | undefined {
+function chooseBestImageCandidate(
+  candidates: ImageCandidate[],
+): ImageCandidate | undefined {
   const normalizedCandidates = candidates
     .map((candidate) => ({
       ...candidate,
       url: normalizeImageUrl(upgradeLowResolutionImageUrl(candidate.url)),
     }))
-    .filter((candidate) => candidate.url && !isVeryLowQualityImageUrl(candidate.url));
+    .filter(
+      (candidate) =>
+        candidate.url &&
+        !getImageUrlQualityProblem(candidate.url) &&
+        !isVeryLowQualityImageUrl(candidate.url),
+    );
 
-  return normalizedCandidates.sort(compareImageCandidates)[0]?.url;
+  return normalizedCandidates.sort(compareImageCandidates)[0];
 }
 
 function compareImageCandidates(a: ImageCandidate, b: ImageCandidate): number {
@@ -1392,15 +1998,18 @@ function compareImageCandidates(a: ImageCandidate, b: ImageCandidate): number {
 
 function getImageCandidateScore(candidate: ImageCandidate): number {
   const sourceScore: Record<ImageCandidate["source"], number> = {
-    og: 500,
-    twitter: 450,
-    media: 380,
-    enclosure: 330,
-    thumbnail: 120,
+    media: 500,
+    enclosure: 420,
+    og: 360,
+    twitter: 320,
+    structured: 280,
   };
   const dimensions = inferImageDimensions(candidate.url);
-  const dimensionScore = dimensions
-    ? Math.min(dimensions.width, 1600) + Math.min(dimensions.height, 900)
+  const candidateWidth = candidate.width ?? dimensions?.width;
+  const candidateHeight = candidate.height ?? dimensions?.height;
+  const dimensionScore =
+    candidateWidth && candidateHeight
+    ? Math.min(candidateWidth, 1600) + Math.min(candidateHeight, 900)
     : 0;
   const queryWidth = getImageQueryNumber(candidate.url, [
     "w",
@@ -1415,12 +2024,17 @@ function getImageCandidateScore(candidate: ImageCandidate): number {
   const queryDimensionScore =
     Math.min(queryWidth ?? 0, 1600) + Math.min(queryHeight ?? 0, 900);
   const lowQualityPenalty = hasLowResolutionPattern(candidate.url) ? 220 : 0;
+  const portraitPenalty =
+    candidateWidth && candidateHeight && candidateWidth / candidateHeight < 1.2
+      ? 140
+      : 0;
 
   return (
-    sourceScore[candidate.source] +
+    (candidate.priority ?? sourceScore[candidate.source]) +
     dimensionScore / 4 +
     queryDimensionScore -
-    lowQualityPenalty
+    lowQualityPenalty -
+    portraitPenalty
   );
 }
 
@@ -1531,6 +2145,12 @@ function hasLowResolutionPattern(value: string): boolean {
   return /(?:thumbnail|thumb|small|150x150|300x\d+|\d+x300)/i.test(value);
 }
 
+function hasSuspiciousLowResolutionPattern(value: string): boolean {
+  return /(?:thumbnail|thumb|small|icon|logo|avatar|150x150|120x120|64x64|300x\d+|\d+x300)/i.test(
+    value,
+  );
+}
+
 function isVeryLowQualityImageUrl(value: string): boolean {
   const dimensions = inferImageDimensions(value);
 
@@ -1627,6 +2247,7 @@ function toOutputArticle(item: EnrichedRssItem): OutputArticle {
   const category = item.fallbackCategory;
   const level = estimateLevel(text);
   const imageUrl = item.imageUrl ?? categoryFallbackImages[category];
+  const hasUsableImage = Boolean(item.imageUrl);
 
   return {
     id: slugify(`${item.source}-${item.title}`),
@@ -1636,7 +2257,9 @@ function toOutputArticle(item: EnrichedRssItem): OutputArticle {
     source: item.source,
     publishedDate: item.publishedDate,
     imageUrl,
-    usesFallbackImage: !item.imageUrl,
+    imageSourceType: item.imageSourceType ?? (hasUsableImage ? "media" : "fallback"),
+    hasUsableImage,
+    usesFallbackImage: !hasUsableImage,
     category,
     level,
     isFallback: false,
@@ -1653,6 +2276,7 @@ function toRssFallbackArticle(item: RssItem): OutputArticle {
     item.summary ||
     `This RSS item is available from ${item.source}. Open the original source to read the full article.`;
   const imageUrl = item.imageUrl ?? categoryFallbackImages[category];
+  const hasUsableImage = Boolean(item.imageUrl);
 
   return {
     id: slugify(`${item.source}-${item.title}`),
@@ -1662,7 +2286,9 @@ function toRssFallbackArticle(item: RssItem): OutputArticle {
     source: item.source,
     publishedDate: item.publishedDate,
     imageUrl,
-    usesFallbackImage: !item.imageUrl,
+    imageSourceType: item.imageSourceType ?? (hasUsableImage ? "media" : "fallback"),
+    hasUsableImage,
+    usesFallbackImage: !hasUsableImage,
     category,
     level: estimateLevel(`${item.title}. ${content}`),
     isFallback: true,

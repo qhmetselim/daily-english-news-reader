@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { InterfaceLanguage, Level } from "@/lib/i18n";
@@ -35,6 +35,8 @@ export type Article = {
   source: string;
   publishedDate: string;
   imageUrl?: string;
+  imageSourceType?: "media" | "enclosure" | "og" | "twitter" | "structured" | "fallback";
+  hasUsableImage: boolean;
   usesFallbackImage?: boolean;
   category: ArticleCategory;
   level: Level;
@@ -56,6 +58,8 @@ type RawArticle = {
   source?: string;
   publishedDate?: string;
   imageUrl?: string;
+  imageSourceType?: Article["imageSourceType"];
+  hasUsableImage?: boolean;
   usesFallbackImage?: boolean;
   category?: ArticleCategory;
   level?: string;
@@ -115,6 +119,8 @@ function normalizeArticle(article: RawArticle): Article {
     splitParagraphs(content);
   const category = article.category ?? "World";
   const readingTimeMinutes = article.readingTimeMinutes ?? estimateReadingTime(content);
+  const imageUrl = normalizeImageUrl(article.imageUrl);
+  const usesFallbackImage = article.usesFallbackImage === true;
 
   return {
     id: article.id ?? slugify(title),
@@ -124,8 +130,13 @@ function normalizeArticle(article: RawArticle): Article {
     summary,
     source: article.source ?? "RSS",
     publishedDate: article.publishedDate ?? new Date().toISOString(),
-    imageUrl: normalizeImageUrl(article.imageUrl),
-    usesFallbackImage: article.usesFallbackImage === true,
+    imageUrl,
+    imageSourceType:
+      article.imageSourceType ?? (usesFallbackImage ? "fallback" : undefined),
+    hasUsableImage:
+      Boolean(imageUrl && !usesFallbackImage && localImageExists(imageUrl)) &&
+      article.hasUsableImage !== false,
+    usesFallbackImage,
     category,
     level: normalizeLevel(article.level),
     readTime: `${readingTimeMinutes} min`,
@@ -168,6 +179,14 @@ function normalizeImageUrl(value: string | undefined): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function localImageExists(value: string): boolean {
+  if (!value.startsWith("/")) {
+    return true;
+  }
+
+  return existsSync(path.join(process.cwd(), "public", value));
 }
 
 function normalizeLevel(level: string | undefined): Level {

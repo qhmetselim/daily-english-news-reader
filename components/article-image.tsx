@@ -52,6 +52,7 @@ const categoryVisuals: Record<
 type ArticleImageProps = {
   category: ArticleCategory;
   imageUrl?: string;
+  hasUsableImage?: boolean;
   title: string;
   usesFallbackImage?: boolean;
   sizes: string;
@@ -63,6 +64,7 @@ type ArticleImageProps = {
 export function ArticleImage({
   category,
   imageUrl,
+  hasUsableImage = true,
   title,
   usesFallbackImage,
   sizes,
@@ -72,7 +74,9 @@ export function ArticleImage({
 }: ArticleImageProps) {
   const [imageFailed, setImageFailed] = useState(false);
   const displayImageUrl = getDisplayImageUrl(imageUrl);
-  const showImage = Boolean(displayImageUrl && !usesFallbackImage && !imageFailed);
+  const showImage = Boolean(
+    displayImageUrl && hasUsableImage && !usesFallbackImage && !imageFailed,
+  );
 
   return (
     <div className={`relative overflow-hidden bg-slate-100 ${className}`}>
@@ -165,7 +169,9 @@ function isLowQualityImageUrl(value: string): boolean {
     return true;
   }
 
-  return /(?:thumbnail|thumb|small|150x150|300x\d+|\d+x300)/i.test(value);
+  return /(?:thumbnail|thumb|small|icon|logo|avatar|150x150|120x120|64x64|300x\d+|\d+x300)/i.test(
+    value,
+  );
 }
 
 function isSignedGuardianImage(value: string): boolean {

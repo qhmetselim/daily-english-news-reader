@@ -175,6 +175,7 @@ function ArticleCard({
         <ArticleImage
           category={article.category}
           imageUrl={article.imageUrl}
+          hasUsableImage={article.hasUsableImage}
           title={article.title}
           usesFallbackImage={article.usesFallbackImage}
           sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
